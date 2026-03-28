@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useHospital } from "@/contexts/HospitalContext";
 import SOSButton from "@/components/SOSButton";
 import PatientTriage from "@/components/patient/PatientTriage";
@@ -17,50 +17,65 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+function getHashTab(): TabId {
+  const hash = window.location.hash.replace("#", "") as TabId;
+  if (TABS.some((t) => t.id === hash)) return hash;
+  return "triage";
+}
+
 export default function PatientLayout() {
-  const [tab, setTab] = useState<TabId>("triage");
+  const [tab, setTab] = useState<TabId>(getHashTab);
   const { currentPatient, setRole, pendingDestination } = useHospital();
 
+  const navigateTab = useCallback((id: TabId) => {
+    window.location.hash = id;
+    setTab(id);
+  }, []);
+
   useEffect(() => {
-    if (pendingDestination) {
-      setTab("nav");
-    }
-  }, [pendingDestination]);
+    const onHashChange = () => setTab(getHashTab());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  useEffect(() => {
+    if (pendingDestination) navigateTab("nav");
+  }, [pendingDestination, navigateTab]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto relative">
+    <div className="min-h-screen bg-background flex flex-col w-full max-w-lg mx-auto relative">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b bg-card">
+      <header className="flex items-center justify-between px-4 py-3 border-b bg-primary text-primary-foreground">
         <div className="flex items-center gap-3">
-          <img src={hubLogo} alt="UnB HUB" className="h-8 object-contain" />
+          <img src={hubLogo} alt="UnB HUB" className="h-8 object-contain brightness-0 invert" />
           <div>
-            <p className="text-xs text-muted-foreground">Olá,</p>
-            <p className="font-display font-semibold text-foreground">{currentPatient.name}</p>
+            <p className="text-[11px] opacity-80">Olá,</p>
+            <p className="font-display font-semibold text-sm">{currentPatient.name}</p>
           </div>
         </div>
-        <button onClick={() => setRole(null)} className="text-muted-foreground hover:text-foreground p-2" aria-label="Sair">
+        <button onClick={() => { setRole(null); window.location.hash = ""; }} className="opacity-70 hover:opacity-100 p-2" aria-label="Sair">
           <LogOut className="w-5 h-5" />
         </button>
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-24 px-4 pt-4">
-        {tab === "triage" && <PatientTriage />}
+      <main className="flex-1 overflow-y-auto pb-20 px-4 pt-5">
+        {tab === "triage" && <PatientTriage onComplete={() => navigateTab("queue")} />}
         {tab === "oncology" && <PatientOncology />}
         {tab === "nav" && <PatientNavigation />}
         {tab === "queue" && <PatientQueue />}
       </main>
 
       {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-card border-t flex z-40" role="tablist">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-primary border-t border-primary-foreground/10 flex z-40 shadow-lg" role="tablist">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             role="tab"
             aria-selected={tab === id}
-            onClick={() => setTab(id)}
+            onClick={() => navigateTab(id)}
             className={`flex-1 flex flex-col items-center py-2.5 text-xs transition-colors ${
-              tab === id ? "text-primary font-semibold" : "text-muted-foreground"
+              tab === id ? "text-secondary font-bold" : "text-primary-foreground/60"
             }`}
           >
             <Icon className="w-5 h-5 mb-0.5" />

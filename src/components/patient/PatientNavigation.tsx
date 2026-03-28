@@ -17,16 +17,18 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const LOCATIONS = [
-  { id: "onco", name: "Oncologia", floor: "2º Andar", block: "Bloco B", x: 320, y: 80 },
-  { id: "lab", name: "Laboratório", floor: "Térreo", block: "Bloco A", x: 160, y: 220 },
-  { id: "radio", name: "Radiologia", floor: "1º Andar", block: "Bloco C", x: 320, y: 180 },
-  { id: "farm", name: "Farmácia", floor: "Térreo", block: "Bloco A", x: 100, y: 140 },
-  { id: "emer", name: "Emergência", floor: "Térreo", block: "Bloco D", x: 360, y: 260 },
-  { id: "uti", name: "UTI", floor: "3º Andar", block: "Bloco B", x: 280, y: 40 },
-  { id: "recep", name: "Recepção Principal", floor: "Térreo", block: "Bloco A", x: 80, y: 60 },
-  { id: "cafe", name: "Cafeteria", floor: "Térreo", block: "Bloco A", x: 200, y: 60 },
-  { id: "ambu", name: "Ambulatório", floor: "1º Andar", block: "Bloco A", x: 140, y: 120 },
+  { id: "recep", name: "Recepção Principal", floor: 0, block: "A", x: 60, y: 240 },
+  { id: "farm", name: "Farmácia", floor: 0, block: "A", x: 180, y: 240 },
+  { id: "cafe", name: "Cafeteria", floor: 0, block: "A", x: 300, y: 240 },
+  { id: "lab", name: "Laboratório", floor: 0, block: "A", x: 180, y: 180 },
+  { id: "emer", name: "Emergência", floor: 0, block: "D", x: 370, y: 180 },
+  { id: "ambu", name: "Ambulatório", floor: 1, block: "A", x: 100, y: 100 },
+  { id: "radio", name: "Radiologia", floor: 1, block: "C", x: 300, y: 100 },
+  { id: "onco", name: "Oncologia", floor: 2, block: "B", x: 200, y: 50 },
+  { id: "uti", name: "UTI", floor: 3, block: "B", x: 300, y: 50 },
 ];
+
+const FLOOR_LABEL = ["Térreo", "1º Andar", "2º Andar", "3º Andar"];
 
 interface RouteStep {
   instruction: string;
@@ -36,26 +38,27 @@ interface RouteStep {
 
 function getRouteSteps(origin: string, dest: string): RouteStep[] {
   const destLoc = LOCATIONS.find(l => l.name === dest);
-  const originLoc = LOCATIONS.find(l => l.name === origin) || LOCATIONS[6];
+  const originLoc = LOCATIONS.find(l => l.name === origin) || LOCATIONS[0];
   
   const steps: RouteStep[] = [
-    { instruction: `Partindo de ${origin} (${originLoc?.floor}, ${originLoc?.block})`, icon: MapPin },
+    { instruction: `Partindo de ${origin} (${FLOOR_LABEL[originLoc.floor]}, Bloco ${originLoc.block})`, icon: MapPin },
   ];
 
-  if (originLoc?.floor !== destLoc?.floor) {
-    steps.push({ instruction: "Siga pelo corredor principal até o hall de elevadores", icon: Navigation });
-    steps.push({ instruction: "Elevador disponível · Escada à direita · Rampa acessível à esquerda", icon: Accessibility, highlight: true });
-    steps.push({ instruction: `Suba para o ${destLoc?.floor}`, icon: ArrowUp, highlight: true });
-    steps.push({ instruction: `Ao sair do elevador, vire à direita`, icon: Navigation });
+  if (originLoc.floor !== destLoc?.floor) {
+    steps.push({ instruction: "Siga pelo corredor principal até o hall central", icon: Navigation });
+    steps.push({ instruction: "🛗 Elevador • 🪜 Escada • ♿ Rampa acessível", icon: Accessibility, highlight: true });
+    const direction = (destLoc?.floor ?? 0) > originLoc.floor ? "Suba" : "Desça";
+    steps.push({ instruction: `${direction} para o ${FLOOR_LABEL[destLoc?.floor ?? 0]}`, icon: ArrowUp, highlight: true });
+    steps.push({ instruction: `Ao sair, siga pela sinalização do ${destLoc?.block ? `Bloco ${destLoc.block}` : "corredor"}`, icon: Navigation });
   } else {
-    steps.push({ instruction: "Siga reto pelo corredor", icon: Navigation });
+    steps.push({ instruction: "Siga reto pelo corredor do andar atual", icon: Navigation });
   }
 
-  if (originLoc?.block !== destLoc?.block) {
-    steps.push({ instruction: `Passe pela recepção do ${destLoc?.block}`, icon: DoorOpen });
+  if (originLoc.block !== destLoc?.block) {
+    steps.push({ instruction: `Passe pela recepção do Bloco ${destLoc?.block}`, icon: DoorOpen });
   }
 
-  steps.push({ instruction: `Entre na sala: ${dest} (${destLoc?.floor}, ${destLoc?.block})`, icon: DoorOpen, highlight: true });
+  steps.push({ instruction: `Chegou: ${dest} (${FLOOR_LABEL[destLoc?.floor ?? 0]}, Bloco ${destLoc?.block})`, icon: DoorOpen, highlight: true });
 
   return steps;
 }
@@ -93,7 +96,7 @@ export default function PatientNavigation() {
   };
 
   const handleLostConfirm = () => {
-    triggerLost("Localização desconhecida");
+    triggerLost(destination || "Localização desconhecida");
     setLostSent(true);
     setTimeout(() => {
       setShowLostDialog(false);
@@ -104,6 +107,18 @@ export default function PatientNavigation() {
   const destLoc = LOCATIONS.find(l => l.name === destination);
   const originLoc = LOCATIONS.find(l => l.name === origin);
   const routeSteps = destination ? getRouteSteps(origin, destination) : [];
+
+  // Compute route path waypoints for SVG
+  const getRoutePath = () => {
+    if (!originLoc || !destLoc) return "";
+    const midX = 210;
+    const midY = 145;
+    // Route through the central hub
+    if (originLoc.floor !== destLoc.floor) {
+      return `M${originLoc.x} ${originLoc.y} L${originLoc.x} ${midY} L${midX} ${midY} L${midX} ${destLoc.y} L${destLoc.x} ${destLoc.y}`;
+    }
+    return `M${originLoc.x} ${originLoc.y} L${originLoc.x} ${midY} L${destLoc.x} ${midY} L${destLoc.x} ${destLoc.y}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -118,87 +133,79 @@ export default function PatientNavigation() {
       {navigating && destination ? (
         <div className="space-y-4">
           {/* SVG Map */}
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden shadow-sm">
             <CardContent className="p-0">
-              <svg viewBox="0 0 420 320" className="w-full h-60 bg-muted/50" aria-label={`Mapa de ${origin} até ${destination}`}>
-                {/* Background grid */}
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <line key={`v${i}`} x1={i * 50 + 10} y1="10" x2={i * 50 + 10} y2="310" stroke="hsl(var(--border))" strokeWidth="0.3" />
-                ))}
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <line key={`h${i}`} x1="10" y1={i * 50 + 10} x2="410" y2={i * 50 + 10} stroke="hsl(var(--border))" strokeWidth="0.3" />
-                ))}
+              <svg viewBox="0 0 420 290" className="w-full bg-muted/30" style={{ minHeight: 220 }} aria-label={`Mapa de ${origin} até ${destination}`}>
+                {/* Floor sections */}
+                <rect x="5" y="30" width="410" height="55" rx="6" fill="hsl(var(--primary) / 0.04)" stroke="hsl(var(--primary) / 0.12)" strokeWidth="1" />
+                <text x="15" y="22" fontSize="8" fontWeight="600" fill="hsl(var(--primary))">2º–3º Andar</text>
 
-                {/* Rooms */}
-                {LOCATIONS.map((loc) => (
-                  <g key={loc.id}>
-                    <rect
-                      x={loc.x - 35} y={loc.y - 12} width="70" height="24" rx="4"
-                      fill={loc.name === destination ? "hsl(var(--primary) / 0.15)" : loc.name === origin ? "hsl(var(--success) / 0.15)" : "hsl(var(--accent))"}
-                      stroke={loc.name === destination ? "hsl(var(--primary))" : loc.name === origin ? "hsl(var(--success))" : "hsl(var(--border))"}
-                      strokeWidth={loc.name === destination || loc.name === origin ? "2" : "1"}
-                    />
-                    <text x={loc.x} y={loc.y + 4} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="8" fontWeight="500">{loc.name}</text>
-                  </g>
-                ))}
+                <rect x="5" y="85" width="410" height="45" rx="6" fill="hsl(var(--secondary) / 0.04)" stroke="hsl(var(--secondary) / 0.12)" strokeWidth="1" />
+                <text x="15" y="82" fontSize="8" fontWeight="600" fill="hsl(var(--secondary))">1º Andar</text>
 
-                {/* Landmarks */}
-                <g>
-                  {/* Elevator */}
-                  <rect x="195" y="130" width="30" height="20" rx="3" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" strokeWidth="1" />
-                  <text x="210" y="144" textAnchor="middle" fill="hsl(var(--primary))" fontSize="7" fontWeight="bold">🛗</text>
-                  
-                  {/* Stairs */}
-                  <rect x="235" y="130" width="30" height="20" rx="3" fill="hsl(var(--warning) / 0.2)" stroke="hsl(var(--warning))" strokeWidth="1" />
-                  <text x="250" y="144" textAnchor="middle" fill="hsl(var(--warning))" fontSize="7" fontWeight="bold">🪜</text>
-                  
-                  {/* Ramp */}
-                  <rect x="155" y="130" width="30" height="20" rx="3" fill="hsl(var(--success) / 0.2)" stroke="hsl(var(--success))" strokeWidth="1" />
-                  <text x="170" y="144" textAnchor="middle" fill="hsl(var(--success))" fontSize="7" fontWeight="bold">♿</text>
-                </g>
+                <rect x="5" y="155" width="410" height="105" rx="6" fill="hsl(var(--accent))" stroke="hsl(var(--border))" strokeWidth="1" />
+                <text x="15" y="150" fontSize="8" fontWeight="600" fill="hsl(var(--muted-foreground))">Térreo</text>
+
+                {/* Central hub (elevator/stairs/ramp) */}
+                <rect x="185" y="130" width="50" height="30" rx="5" fill="hsl(var(--card))" stroke="hsl(var(--primary))" strokeWidth="1.5" />
+                <text x="195" y="147" fontSize="7" fill="hsl(var(--foreground))">🛗🪜♿</text>
+
+                {/* Room labels with better positioning */}
+                {LOCATIONS.map((loc) => {
+                  const isOrigin = loc.name === origin;
+                  const isDest = loc.name === destination;
+                  const w = Math.max(loc.name.length * 5.5, 50);
+                  return (
+                    <g key={loc.id}>
+                      <rect
+                        x={loc.x - w / 2} y={loc.y - 10} width={w} height={20} rx="4"
+                        fill={isDest ? "hsl(var(--primary))" : isOrigin ? "hsl(var(--secondary))" : "hsl(var(--card))"}
+                        stroke={isDest ? "hsl(var(--primary))" : isOrigin ? "hsl(var(--secondary))" : "hsl(var(--border))"}
+                        strokeWidth={isDest || isOrigin ? "2" : "1"}
+                      />
+                      <text
+                        x={loc.x} y={loc.y + 3.5} textAnchor="middle"
+                        fill={isDest || isOrigin ? "white" : "hsl(var(--foreground))"}
+                        fontSize="7.5" fontWeight={isDest || isOrigin ? "700" : "500"}
+                      >
+                        {loc.name}
+                      </text>
+                    </g>
+                  );
+                })}
 
                 {/* Route path */}
-                {originLoc && destLoc && (
-                  <path
-                    d={`M${originLoc.x} ${originLoc.y + 12} L${originLoc.x} 140 L210 140 L210 ${destLoc.y + 12} L${destLoc.x} ${destLoc.y + 12}`}
-                    fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="8 4" strokeLinecap="round"
-                  />
-                )}
+                <path
+                  d={getRoutePath()}
+                  fill="none" stroke="hsl(var(--primary))" strokeWidth="2.5" strokeDasharray="6 3" strokeLinecap="round" opacity="0.8"
+                />
 
-                {/* Origin dot */}
+                {/* Dots */}
                 {originLoc && (
-                  <>
-                    <circle cx={originLoc.x} cy={originLoc.y} r="6" fill="hsl(var(--success))" />
-                    <circle cx={originLoc.x} cy={originLoc.y} r="3" fill="white" />
-                  </>
+                  <circle cx={originLoc.x} cy={originLoc.y} r="4" fill="hsl(var(--secondary))" stroke="white" strokeWidth="1.5" />
                 )}
-                {/* Dest dot */}
                 {destLoc && (
-                  <>
-                    <circle cx={destLoc.x} cy={destLoc.y} r="6" fill="hsl(var(--primary))" />
-                    <circle cx={destLoc.x} cy={destLoc.y} r="3" fill="white" />
-                  </>
+                  <circle cx={destLoc.x} cy={destLoc.y} r="4" fill="hsl(var(--primary))" stroke="white" strokeWidth="1.5" />
                 )}
 
                 {/* Legend */}
-                <g transform="translate(10, 280)">
-                  <rect width="120" height="28" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-                  <text x="8" y="12" fontSize="6" fill="hsl(var(--muted-foreground))">🛗 Elevador  🪜 Escada  ♿ Rampa</text>
-                  <text x="8" y="22" fontSize="6" fill="hsl(var(--muted-foreground))">🟢 Origem  🔵 Destino</text>
+                <g transform="translate(10, 268)">
+                  <rect width="160" height="16" rx="3" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="0.5" />
+                  <text x="6" y="11" fontSize="6" fill="hsl(var(--muted-foreground))">🟢 Origem  🔵 Destino  🛗 Elevador  🪜 Escada  ♿ Rampa</text>
                 </g>
               </svg>
             </CardContent>
           </Card>
 
           {/* Route steps */}
-          <Card>
-            <CardContent className="p-4 space-y-2">
+          <Card className="shadow-sm">
+            <CardContent className="p-4 space-y-1.5">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Passo a passo</p>
               {routeSteps.map((step, i) => {
                 const Icon = step.icon;
                 return (
-                  <div key={i} className={`flex items-start gap-3 text-sm py-2 ${i < routeSteps.length - 1 ? "border-b border-border" : ""}`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${step.highlight ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                  <div key={i} className={`flex items-start gap-3 text-sm py-2 ${i < routeSteps.length - 1 ? "border-b border-border/50" : ""}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${step.highlight ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                       <Icon className="w-3.5 h-3.5" />
                     </div>
                     <p className={`text-foreground ${step.highlight ? "font-medium" : ""}`}>{step.instruction}</p>
@@ -208,14 +215,14 @@ export default function PatientNavigation() {
             </CardContent>
           </Card>
 
-          <div className="flex items-center gap-2 text-sm bg-accent/50 p-3 rounded-lg">
-            <Navigation className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-2 text-sm bg-primary/5 border border-primary/10 p-3 rounded-xl">
+            <Navigation className="w-4 h-4 text-secondary" />
             <span className="text-foreground font-medium">{origin}</span>
             <span className="text-muted-foreground">→</span>
             <span className="text-primary font-medium">{destination}</span>
           </div>
 
-          <Button className="w-full" onClick={handleFinish}>Finalizar Navegação</Button>
+          <Button className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground" onClick={handleFinish}>Finalizar Navegação</Button>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => { setNavigating(false); setDestination(null); }}>
               Cancelar
@@ -244,14 +251,14 @@ export default function PatientNavigation() {
 
           <div className="space-y-2">
             {filtered.map((loc) => (
-              <Card key={loc.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => handleNavigate(loc.name)}>
+              <Card key={loc.id} className="cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all" onClick={() => handleNavigate(loc.name)}>
                 <CardContent className="flex items-center gap-3 p-3">
-                  <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center">
-                    <MapPin className="w-4 h-4 text-accent-foreground" />
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <MapPin className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">{loc.name}</p>
-                    <p className="text-xs text-muted-foreground">{loc.floor} · {loc.block}</p>
+                    <p className="text-xs text-muted-foreground">{FLOOR_LABEL[loc.floor]} · Bloco {loc.block}</p>
                   </div>
                   <Navigation className="w-4 h-4 text-muted-foreground" />
                 </CardContent>
@@ -259,7 +266,6 @@ export default function PatientNavigation() {
             ))}
           </div>
 
-          {/* Me perdi button when not navigating */}
           <Button
             variant="outline"
             className="w-full border-warning text-warning hover:bg-warning hover:text-warning-foreground"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useHospital } from "@/contexts/HospitalContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, CheckCircle2, Hourglass, Ticket } from "lucide-react";
+import { Clock, CheckCircle2, Hourglass, Ticket, Video, MapPin } from "lucide-react";
 
 const LEVEL_LABELS: Record<string, string> = {
   red: "Emergência",
@@ -14,8 +14,9 @@ const LEVEL_LABELS: Record<string, string> = {
 export default function PatientQueue() {
   const { triageTickets, currentPatient } = useHospital();
   const myTickets = triageTickets.filter((t) => t.patientId === currentPatient.id);
-  const activeTicket = myTickets.find((t) => t.status === "approved" || t.status === "in-queue");
+  const activeTicket = myTickets.find((t) => t.status === "approved" || t.status === "in-queue" || t.status === "in-service");
   const pendingTicket = myTickets.find((t) => t.status === "pending");
+  const completedTicket = myTickets.find((t) => t.status === "completed");
 
   return (
     <div className="space-y-6">
@@ -27,29 +28,48 @@ export default function PatientQueue() {
       {activeTicket ? (
         <TicketCard ticket={activeTicket} />
       ) : pendingTicket ? (
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-6 space-y-4">
             <div className="text-center">
-              <Hourglass className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground">Triagem em análise</p>
+              <Hourglass className="w-10 h-10 text-primary mx-auto mb-3 animate-pulse" />
+              <p className="text-sm font-semibold text-foreground">Triagem em análise</p>
               <p className="text-xs text-muted-foreground mt-1">Aguarde a validação da equipe de saúde</p>
             </div>
-            <div className="bg-muted rounded-lg p-3 space-y-1">
+            <div className="bg-muted/50 rounded-xl p-4 space-y-2">
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Nº Atendimento</span>
-                <span className="font-semibold text-foreground">{pendingTicket.ticketNumber}</span>
+                <span className="font-bold text-primary text-sm">{pendingTicket.ticketNumber}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Sintomas</span>
                 <span className="text-foreground text-right max-w-[60%] truncate">{pendingTicket.symptoms.slice(0, 2).join(", ")}</span>
               </div>
+              {pendingTicket.telemedicine && (
+                <div className="flex items-center gap-1.5 text-xs text-secondary pt-1">
+                  <Video className="w-3.5 h-3.5" />
+                  Teleconsulta solicitada · Previsão: {pendingTicket.telemedicineWait} min
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
+      ) : completedTicket ? (
+        <Card className="shadow-sm border-secondary/30">
+          <CardContent className="p-6 text-center space-y-3">
+            <CheckCircle2 className="w-12 h-12 text-secondary mx-auto" />
+            <p className="text-sm font-semibold text-foreground">Atendimento concluído</p>
+            {completedTicket.resolution && (
+              <div className="bg-muted/50 rounded-xl p-3 text-left">
+                <p className="text-xs text-muted-foreground mb-1">Resolução</p>
+                <p className="text-sm text-foreground">{completedTicket.resolution}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       ) : (
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-6 text-center">
-            <CheckCircle2 className="w-10 h-10 text-success mx-auto mb-3" />
+            <CheckCircle2 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm font-medium text-foreground">Nenhuma triagem ativa</p>
             <p className="text-xs text-muted-foreground mt-1">Realize uma teletriagem na aba "Triagem"</p>
           </CardContent>
@@ -85,32 +105,53 @@ function TicketCard({ ticket }: { ticket: ReturnType<typeof useHospital>["triage
   }[ticket.level];
 
   return (
-    <Card className={`border-2 ${triageColor}`}>
+    <Card className={`border-2 ${triageColor} shadow-sm`}>
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Ticket className="w-4 h-4 text-primary" />
-            <span className="text-lg font-bold text-foreground">{ticket.ticketNumber}</span>
+            <span className="text-xl font-bold text-primary">{ticket.ticketNumber}</span>
           </div>
           <span className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase ${triageBg}`}>
             {LEVEL_LABELS[ticket.level]}
           </span>
         </div>
 
-        <div className="text-center py-4">
-          <Clock className="w-8 h-8 text-primary mx-auto mb-2" />
-          <p className="text-3xl font-display font-bold text-foreground">{remaining} min</p>
-          <p className="text-sm text-muted-foreground">Previsão de atendimento</p>
-        </div>
+        {ticket.status === "in-service" ? (
+          <div className="text-center py-4 bg-secondary/5 rounded-xl">
+            <CheckCircle2 className="w-8 h-8 text-secondary mx-auto mb-2" />
+            <p className="text-lg font-display font-bold text-secondary">Em atendimento</p>
+            <p className="text-sm text-muted-foreground">Você está sendo atendido</p>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <Clock className="w-8 h-8 text-primary mx-auto mb-2" />
+            <p className="text-3xl font-display font-bold text-foreground">{remaining} min</p>
+            <p className="text-sm text-muted-foreground">Previsão de atendimento</p>
+          </div>
+        )}
 
         <div className="space-y-2">
-          <div className="bg-muted rounded-lg p-3">
+          {ticket.telemedicine && (
+            <div className="flex items-center gap-2 bg-secondary/5 p-3 rounded-xl text-sm">
+              <Video className="w-4 h-4 text-secondary" />
+              <span className="text-foreground">Teleconsulta solicitada</span>
+              <span className="ml-auto text-xs text-muted-foreground">{ticket.telemedicineWait} min</span>
+            </div>
+          )}
+          <div className="bg-muted/50 rounded-xl p-3">
             <p className="text-xs text-muted-foreground">Status</p>
             <p className="text-sm font-medium text-foreground">
-              {ticket.status === "approved" ? "Classificação aprovada — aguardando chamada" : "Em fila virtual"}
+              {ticket.status === "in-service" ? "Em atendimento" : ticket.status === "approved" ? "Classificação aprovada — aguardando chamada" : "Em fila virtual"}
             </p>
           </div>
-          <div className="bg-muted rounded-lg p-3">
+          {ticket.location && (
+            <div className="flex items-center gap-1.5 bg-muted/50 rounded-xl p-3 text-sm">
+              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">{ticket.location}</span>
+            </div>
+          )}
+          <div className="bg-muted/50 rounded-xl p-3">
             <p className="text-xs text-muted-foreground">Sintomas reportados</p>
             <p className="text-sm text-foreground">{ticket.symptomsDescription || ticket.symptoms.join(", ")}</p>
           </div>
