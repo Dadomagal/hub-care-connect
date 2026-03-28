@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { DragEvent } from "react";
+import { useRef, useState } from "react";
+import type { DragEvent, TouchEvent } from "react";
 import { useHospital, type TelemedicineStatus, type TriageLevel, type TriageTicket } from "@/contexts/HospitalContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,8 @@ const ALLOWED_MOVES: Record<TriageTicket["status"], TriageTicket["status"][]> = 
   completed: [],
 };
 
+const MOBILE_DRAG_HOLD_MS = 280;
+
 export default function TriageKanban() {
   const {
     triageTickets,
@@ -68,6 +70,9 @@ export default function TriageKanban() {
   const [resolutionDraft, setResolutionDraft] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TriageTicket["status"] | null>(null);
+  const [isMobileDragging, setIsMobileDragging] = useState(false);
+  const [mobileDragPoint, setMobileDragPoint] = useState<{ x: number; y: number } | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
 
   const selectedTicket = detailsTicketId
     ? triageTickets.find((ticket) => ticket.id === detailsTicketId) || null
@@ -117,25 +122,23 @@ export default function TriageKanban() {
   const canDropTo = (ticket: TriageTicket, status: TriageTicket["status"]) =>
     ALLOWED_MOVES[ticket.status].includes(status);
 
-  const handleDragStart = (event: DragEvent<HTMLDivElement>, ticket: TriageTicket) => {
-    event.dataTransfer.setData("text/plain", ticket.id);
-    event.dataTransfer.effectAllowed = "move";
-    setDraggingId(ticket.id);
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
   };
 
-  const handleDragEnd = () => {
-    setDraggingId(null);
-    setDragOverStatus(null);
+  const getDropStatusFromPoint = (x: number, y: number) => {
+    const dropTarget = document
+      .elementFromPoint(x, y)
+      ?.closest<HTMLElement>("[data-drop-status]");
+    const status = dropTarget?.dataset.dropStatus as TriageTicket["status"] | undefined;
+    if (!status) return null;
+    return COLUMNS.some((column) => column.status === status) ? status : null;
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>, status: TriageTicket["status"]) => {
-    event.preventDefault();
-    setDragOverStatus(null);
-    setDraggingId(null);
-    const ticketId = event.dataTransfer.getData("text/plain");
-    const ticket = triageTickets.find((item) => item.id === ticketId);
-    if (!ticket || ticket.status === status || !canDropTo(ticket, status)) return;
-
+  const moveTicketToStatus = (ticket: TriageTicket, status: TriageTicket["status"]) => {
     if (status === "approved" && ticket.status === "pending") {
       approveTicket(ticket.id, ticket.level);
     } else if (status === "pending" && ticket.status === "approved") {
@@ -149,6 +152,90 @@ export default function TriageKanban() {
     } else if (status === "in-queue" && ticket.status === "in-care") {
       setTicketStatus(ticket.id, "in-queue");
     }
+  };
+
+  const handleDragStart = (event: DragEvent<HTMLDivElement>, ticket: TriageTicket) => {
+    clearLongPressTimer();
+    event.dataTransfer.setData("text/plain", ticket.id);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingId(ticket.id);
+  };
+
+  const handleDragEnd = () => {
+    clearLongPressTimer();
+    setIsMobileDragging(false);
+    setMobileDragPoint(null);
+    setDraggingId(null);
+    setDragOverStatus(null);
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>, ticket: TriageTicket) => {
+    if (ticket.status === "completed") return;
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      setDraggingId(ticket.id);
+      setIsMobileDragging(true);
+      setMobileDragPoint({ x: touch.clientX, y: touch.clientY });
+    }, MOBILE_DRAG_HOLD_MS);
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLDivElement>, ticket: TriageTicket) => {
+    if (!isMobileDragging || draggingId !== ticket.id) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    const point = { x: touch.clientX, y: touch.clientY };
+    setMobileDragPoint(point);
+
+    const targetStatus = getDropStatusFromPoint(point.x, point.y);
+    if (targetStatus && canDropTo(ticket, targetStatus)) {
+      setDragOverStatus(targetStatus);
+      return;
+    }
+    setDragOverStatus(null);
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>, ticket: TriageTicket) => {
+    clearLongPressTimer();
+    if (!isMobileDragging || draggingId !== ticket.id) return;
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    const touch = event.changedTouches[0];
+    const targetStatus = touch ? getDropStatusFromPoint(touch.clientX, touch.clientY) : dragOverStatus;
+    if (targetStatus && ticket.status !== targetStatus && canDropTo(ticket, targetStatus)) {
+      moveTicketToStatus(ticket, targetStatus);
+    }
+
+    setIsMobileDragging(false);
+    setMobileDragPoint(null);
+    setDraggingId(null);
+    setDragOverStatus(null);
+  };
+
+  const handleTouchCancel = () => {
+    clearLongPressTimer();
+    setIsMobileDragging(false);
+    setMobileDragPoint(null);
+    setDraggingId(null);
+    setDragOverStatus(null);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>, status: TriageTicket["status"]) => {
+    event.preventDefault();
+    setDragOverStatus(null);
+    setDraggingId(null);
+    const ticketId = event.dataTransfer.getData("text/plain");
+    const ticket = triageTickets.find((item) => item.id === ticketId);
+    if (!ticket || ticket.status === status || !canDropTo(ticket, status)) return;
+    moveTicketToStatus(ticket, status);
   };
 
   return (
@@ -168,6 +255,7 @@ export default function TriageKanban() {
                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{tickets.length}</span>
               </div>
               <div
+                data-drop-status={col.status}
                 className={`space-y-2 min-h-[120px] bg-muted/30 rounded-xl p-2 transition-shadow ${dropActive ? "ring-2 ring-primary/40 bg-primary/10" : ""}`}
                 onDragOver={(event) => {
                   if (isDropAllowed) {
@@ -181,10 +269,15 @@ export default function TriageKanban() {
                 {tickets.map((ticket) => (
                   <Card
                     key={ticket.id}
-                    className={`shadow-sm ${getStatusAccent(ticket.status)} ${draggingId === ticket.id ? "opacity-60" : ""}`}
+                    className={`shadow-sm ${getStatusAccent(ticket.status)} ${draggingId === ticket.id ? "opacity-60" : ""} ${isMobileDragging && draggingId === ticket.id ? "ring-2 ring-primary/50" : ""}`}
                     draggable={ticket.status !== "completed"}
                     onDragStart={(event) => handleDragStart(event, ticket)}
                     onDragEnd={handleDragEnd}
+                    onTouchStart={(event) => handleTouchStart(event, ticket)}
+                    onTouchMove={(event) => handleTouchMove(event, ticket)}
+                    onTouchEnd={(event) => handleTouchEnd(event, ticket)}
+                    onTouchCancel={handleTouchCancel}
+                    style={{ touchAction: isMobileDragging && draggingId === ticket.id ? "none" : "pan-y" }}
                   >
                     <CardContent className="p-3 flex flex-col gap-2 h-full">
                       <div className="flex items-center justify-between">
@@ -268,6 +361,15 @@ export default function TriageKanban() {
           );
         })}
       </div>
+
+      {isMobileDragging && draggingTicket && mobileDragPoint && (
+        <div
+          className="fixed z-[70] pointer-events-none -translate-x-1/2 -translate-y-1/2 rounded-md bg-foreground text-background text-xs px-2.5 py-1.5 shadow-lg"
+          style={{ left: mobileDragPoint.x, top: mobileDragPoint.y }}
+        >
+          Movendo {draggingTicket.ticketNumber}
+        </div>
+      )}
 
       <Dialog open={detailsOpen} onOpenChange={closeDetails}>
         <DialogContent className="max-w-2xl">

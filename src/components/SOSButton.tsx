@@ -30,7 +30,7 @@ export default function SOSButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-emergency text-emergency-foreground flex items-center justify-center shadow-xl animate-sos-pulse focus:outline-none focus:ring-4 focus:ring-emergency/40"
+        className="fixed bottom-24 sm:bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-emergency text-emergency-foreground flex items-center justify-center shadow-xl animate-sos-pulse focus:outline-none focus:ring-4 focus:ring-emergency/40"
         aria-label="Emergência SOS"
       >
         <AlertTriangle className="w-7 h-7" />
