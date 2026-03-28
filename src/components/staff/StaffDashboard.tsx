@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useHospital } from "@/contexts/HospitalContext";
 import { LogOut } from "lucide-react";
 import SOSAlertPanel from "@/components/staff/SOSAlertPanel";
@@ -8,12 +9,21 @@ import hubLogo from "@/assets/hub-logo.png";
 
 export default function StaffDashboard() {
   const { setRole, sosAlerts, lostAlerts } = useHospital();
+  const [searchParams, setSearchParams] = useSearchParams();
   const activeAlerts = sosAlerts.filter((a) => a.active).length;
   const activeLost = lostAlerts.filter((a) => a.active && !a.assignedTo).length;
 
+  const handleLogout = () => {
+    setRole(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete("role");
+    next.delete("tab");
+    setSearchParams(next);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 bg-card border-b px-6 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-lg border-b border-primary/10 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src={hubLogo} alt="UnB HUB" className="h-10 object-contain" />
           <div>
@@ -34,13 +44,13 @@ export default function StaffDashboard() {
               {activeAlerts} SOS ativo{activeAlerts > 1 ? "s" : ""}
             </span>
           )}
-          <button onClick={() => setRole(null)} className="text-muted-foreground hover:text-foreground p-2" aria-label="Sair">
+          <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground p-2" aria-label="Sair">
             <LogOut className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <main className="p-6 space-y-6 max-w-7xl mx-auto">
+      <main className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
         <SOSAlertPanel />
         <LostAlertPanel />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

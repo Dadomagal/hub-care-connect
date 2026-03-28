@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useHospital, type TriageLevel } from "@/contexts/HospitalContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const SYMPTOM_GROUPS = [
   {
@@ -55,17 +56,22 @@ const LEVEL_LABELS: Record<TriageLevel, { label: string; desc: string; wait: str
 
 export default function PatientTriage() {
   const { addTriageTicket, currentPatient } = useHospital();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [step, setStep] = useState(0);
   // Independent selections per step
   const [stepSelections, setStepSelections] = useState<Record<number, string[]>>({});
   const [otherTexts, setOtherTexts] = useState<Record<number, string>>({});
   const [detailText, setDetailText] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<TriageLevel | null>(null);
 
-  const isWizard = step < TOTAL_STEPS;
   const isDetailStep = step === SYMPTOM_GROUPS.length;
   const isResult = step === TOTAL_STEPS;
+
+  const setTabParam = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tab);
+    setSearchParams(next);
+  };
 
   const toggleOption = (stepIdx: number, label: string) => {
     setStepSelections((prev) => {
@@ -101,7 +107,8 @@ export default function PatientTriage() {
     return symptoms;
   };
 
-  const handleNext = () => {
+  const handleNext = (canProceed = true) => {
+    if (!canProceed) return;
     if (step < TOTAL_STEPS - 1) {
       setStep(step + 1);
     } else {
@@ -113,7 +120,23 @@ export default function PatientTriage() {
     }
   };
 
-  const handleSubmit = () => {
+  const getTelemedicineEta = (level: TriageLevel) => {
+    if (level === "red") return 5;
+    if (level === "orange") return 15;
+    if (level === "yellow") return 25;
+    if (level === "green") return 40;
+    return 55;
+  };
+
+  const resetForm = () => {
+    setStep(0);
+    setStepSelections({});
+    setOtherTexts({});
+    setDetailText("");
+    setResult(null);
+  };
+
+  const handleSubmit = (telemedicineRequested: boolean) => {
     if (!result) return;
     const symptoms = getAllSymptoms();
     addTriageTicket({
@@ -125,27 +148,17 @@ export default function PatientTriage() {
       status: "pending",
       estimatedWait: result === "red" ? 0 : result === "orange" ? 10 : result === "yellow" ? 60 : result === "green" ? 120 : 240,
       location: "Recepção Principal",
+      telemedicineRequested,
+      telemedicineEta: telemedicineRequested ? getTelemedicineEta(result) : undefined,
+      telemedicineStatus: telemedicineRequested ? "waiting" : undefined,
     });
-    setSubmitted(true);
+    resetForm();
+    setTabParam("queue");
   };
-
-  if (submitted) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <CheckCircle2 className="w-16 h-16 text-success mb-4" />
-        <h2 className="text-xl font-display font-bold text-foreground">Triagem Enviada!</h2>
-        <p className="text-muted-foreground mt-2 text-sm">
-          Sua pré-classificação foi enviada à equipe. Acompanhe na aba "Fila".
-        </p>
-        <Button className="mt-6" onClick={() => { setStep(0); setStepSelections({}); setOtherTexts({}); setDetailText(""); setSubmitted(false); setResult(null); }}>
-          Nova Triagem
-        </Button>
-      </div>
-    );
-  }
 
   if (isResult && result) {
     const info = LEVEL_LABELS[result];
+    const telemedicineEta = getTelemedicineEta(result);
     const triageColorClass = {
       red: "border-triage-red bg-triage-red/10 text-triage-red",
       orange: "border-triage-orange bg-triage-orange/10 text-triage-orange",
@@ -169,12 +182,18 @@ export default function PatientTriage() {
         <p className="text-xs text-muted-foreground">
           Esta é uma pré-classificação baseada no Protocolo de Manchester. A equipe médica validará presencialmente.
         </p>
-        <div className="flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => { setStep(0); setStepSelections({}); setOtherTexts({}); setDetailText(""); setResult(null); }}>
+        <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground">
+          Atendimento médico disponível à distância. Tempo estimado: <span className="font-semibold text-foreground">{telemedicineEta} min</span>.
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button variant="outline" className="flex-1" onClick={resetForm}>
             <ChevronLeft className="w-4 h-4 mr-1" /> Refazer
           </Button>
-          <Button className="flex-1" onClick={handleSubmit}>
-            Enviar à Equipe
+          <Button className="flex-1" onClick={() => handleSubmit(true)}>
+            Solicitar atendimento médico
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={() => handleSubmit(false)}>
+            Enviar triagem
           </Button>
         </div>
       </div>
@@ -221,6 +240,8 @@ export default function PatientTriage() {
   const group = SYMPTOM_GROUPS[step];
   const currentSelections = stepSelections[step] || [];
   const showOtherInput = currentSelections.includes("Outros");
+  const otherTextValid = !showOtherInput || Boolean(otherTexts[step]?.trim());
+  const canProceed = currentSelections.length > 0 && otherTextValid;
 
   return (
     <div className="space-y-4">
@@ -279,7 +300,7 @@ export default function PatientTriage() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
         )}
-        <Button className="flex-1" onClick={handleNext}>
+        <Button className="flex-1" onClick={() => handleNext(canProceed)} disabled={!canProceed}>
           {step < TOTAL_STEPS - 1 ? (
             <>Próximo <ChevronRight className="w-4 h-4 ml-1" /></>
           ) : (
@@ -287,6 +308,9 @@ export default function PatientTriage() {
           )}
         </Button>
       </div>
+      {!canProceed && (
+        <p className="text-xs text-warning">Selecione ao menos uma opção para continuar.</p>
+      )}
     </div>
   );
 }

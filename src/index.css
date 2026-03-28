@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
+    --background: 210 30% 99%;
     --foreground: 210 40% 11%;
 
     --card: 0 0% 100%;
@@ -20,20 +20,20 @@
     --primary-foreground: 0 0% 100%;
 
     /* HUB Green */
-    --secondary: 152 100% 26%;
+    --secondary: 152 75% 28%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 210 15% 46%;
+    --muted: 210 24% 96%;
+    --muted-foreground: 210 18% 42%;
 
-    --accent: 210 60% 94%;
-    --accent-foreground: 210 100% 20%;
+    --accent: 206 70% 93%;
+    --accent-foreground: 210 100% 18%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 18% 87%;
-    --input: 210 18% 87%;
+    --border: 210 18% 88%;
+    --input: 210 18% 88%;
     --ring: 210 100% 20%;
 
     --radius: 0.75rem;
@@ -102,7 +102,16 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    background-image:
+      radial-gradient(1200px 500px at 10% -10%, hsl(var(--primary) / 0.12), transparent 60%),
+      radial-gradient(900px 400px at 95% 0%, hsl(var(--secondary) / 0.14), transparent 60%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
+    background-attachment: fixed;
   }
+}
+
+#root {
+  min-height: 100vh;
 }
 
 @layer utilities {
