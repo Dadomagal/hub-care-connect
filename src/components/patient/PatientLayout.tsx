@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useHospital } from "@/contexts/HospitalContext";
 import SOSButton from "@/components/SOSButton";
 import PatientTriage from "@/components/patient/PatientTriage";
@@ -6,6 +6,7 @@ import PatientOncology from "@/components/patient/PatientOncology";
 import PatientNavigation from "@/components/patient/PatientNavigation";
 import PatientQueue from "@/components/patient/PatientQueue";
 import { ClipboardList, Calendar, MapPin, Clock, LogOut } from "lucide-react";
+import hubLogo from "@/assets/hub-logo.png";
 
 const TABS = [
   { id: "triage", label: "Triagem", icon: ClipboardList },
@@ -18,15 +19,24 @@ type TabId = (typeof TABS)[number]["id"];
 
 export default function PatientLayout() {
   const [tab, setTab] = useState<TabId>("triage");
-  const { currentPatient, setRole } = useHospital();
+  const { currentPatient, setRole, pendingDestination } = useHospital();
+
+  useEffect(() => {
+    if (pendingDestination) {
+      setTab("nav");
+    }
+  }, [pendingDestination]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto relative">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b bg-card">
-        <div>
-          <p className="text-xs text-muted-foreground">Olá,</p>
-          <p className="font-display font-semibold text-foreground">{currentPatient.name}</p>
+        <div className="flex items-center gap-3">
+          <img src={hubLogo} alt="UnB HUB" className="h-8 object-contain" />
+          <div>
+            <p className="text-xs text-muted-foreground">Olá,</p>
+            <p className="font-display font-semibold text-foreground">{currentPatient.name}</p>
+          </div>
         </div>
         <button onClick={() => setRole(null)} className="text-muted-foreground hover:text-foreground p-2" aria-label="Sair">
           <LogOut className="w-5 h-5" />
@@ -59,7 +69,8 @@ export default function PatientLayout() {
         ))}
       </nav>
 
-      <SOSButton />
+      {/* SOS only in Oncology tab */}
+      {tab === "oncology" && <SOSButton />}
     </div>
   );
 }

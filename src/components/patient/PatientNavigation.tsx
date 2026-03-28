@@ -1,27 +1,82 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useHospital } from "@/contexts/HospitalContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MapPin, Navigation, Search, QrCode } from "lucide-react";
+import { MapPin, Navigation, Search, QrCode, Stairs, ArrowUp, DoorOpen, Accessibility, AlertTriangle } from "lucide-react";
 import FeedbackPopup from "@/components/FeedbackPopup";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const LOCATIONS = [
-  { id: "onco", name: "Oncologia", floor: "2º Andar", block: "Bloco B" },
-  { id: "lab", name: "Laboratório", floor: "Térreo", block: "Bloco A" },
-  { id: "radio", name: "Radiologia", floor: "1º Andar", block: "Bloco C" },
-  { id: "farm", name: "Farmácia", floor: "Térreo", block: "Bloco A" },
-  { id: "emer", name: "Emergência", floor: "Térreo", block: "Bloco D" },
-  { id: "uti", name: "UTI", floor: "3º Andar", block: "Bloco B" },
-  { id: "recep", name: "Recepção Principal", floor: "Térreo", block: "Bloco A" },
-  { id: "cafe", name: "Cafeteria", floor: "Térreo", block: "Bloco A" },
+  { id: "onco", name: "Oncologia", floor: "2º Andar", block: "Bloco B", x: 320, y: 80 },
+  { id: "lab", name: "Laboratório", floor: "Térreo", block: "Bloco A", x: 160, y: 220 },
+  { id: "radio", name: "Radiologia", floor: "1º Andar", block: "Bloco C", x: 320, y: 180 },
+  { id: "farm", name: "Farmácia", floor: "Térreo", block: "Bloco A", x: 100, y: 140 },
+  { id: "emer", name: "Emergência", floor: "Térreo", block: "Bloco D", x: 360, y: 260 },
+  { id: "uti", name: "UTI", floor: "3º Andar", block: "Bloco B", x: 280, y: 40 },
+  { id: "recep", name: "Recepção Principal", floor: "Térreo", block: "Bloco A", x: 80, y: 60 },
+  { id: "cafe", name: "Cafeteria", floor: "Térreo", block: "Bloco A", x: 200, y: 60 },
+  { id: "ambu", name: "Ambulatório", floor: "1º Andar", block: "Bloco A", x: 140, y: 120 },
 ];
 
+interface RouteStep {
+  instruction: string;
+  icon: typeof MapPin;
+  highlight?: boolean;
+}
+
+function getRouteSteps(origin: string, dest: string): RouteStep[] {
+  const destLoc = LOCATIONS.find(l => l.name === dest);
+  const originLoc = LOCATIONS.find(l => l.name === origin) || LOCATIONS[6];
+  
+  const steps: RouteStep[] = [
+    { instruction: `Partindo de ${origin} (${originLoc?.floor}, ${originLoc?.block})`, icon: MapPin },
+  ];
+
+  if (originLoc?.floor !== destLoc?.floor) {
+    steps.push({ instruction: "Siga pelo corredor principal até o hall de elevadores", icon: Navigation });
+    steps.push({ instruction: "Elevador disponível · Escada à direita · Rampa acessível à esquerda", icon: Accessibility, highlight: true });
+    steps.push({ instruction: `Suba para o ${destLoc?.floor}`, icon: ArrowUp, highlight: true });
+    steps.push({ instruction: `Ao sair do elevador, vire à direita`, icon: Navigation });
+  } else {
+    steps.push({ instruction: "Siga reto pelo corredor", icon: Navigation });
+  }
+
+  if (originLoc?.block !== destLoc?.block) {
+    steps.push({ instruction: `Passe pela recepção do ${destLoc?.block}`, icon: DoorOpen });
+  }
+
+  steps.push({ instruction: `Entre na sala: ${dest} (${destLoc?.floor}, ${destLoc?.block})`, icon: DoorOpen, highlight: true });
+
+  return steps;
+}
+
 export default function PatientNavigation() {
+  const { pendingDestination, setPendingDestination, triggerLost } = useHospital();
   const [search, setSearch] = useState("");
   const [origin] = useState("Recepção Principal");
   const [destination, setDestination] = useState<string | null>(null);
   const [navigating, setNavigating] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showLostDialog, setShowLostDialog] = useState(false);
+  const [lostSent, setLostSent] = useState(false);
+
+  useEffect(() => {
+    if (pendingDestination) {
+      setDestination(pendingDestination);
+      setNavigating(true);
+      setPendingDestination(null);
+    }
+  }, [pendingDestination, setPendingDestination]);
 
   const filtered = LOCATIONS.filter((l) =>
     l.name.toLowerCase().includes(search.toLowerCase())
@@ -37,6 +92,19 @@ export default function PatientNavigation() {
     setShowFeedback(true);
   };
 
+  const handleLostConfirm = () => {
+    triggerLost("Localização desconhecida");
+    setLostSent(true);
+    setTimeout(() => {
+      setShowLostDialog(false);
+      setLostSent(false);
+    }, 2000);
+  };
+
+  const destLoc = LOCATIONS.find(l => l.name === destination);
+  const originLoc = LOCATIONS.find(l => l.name === origin);
+  const routeSteps = destination ? getRouteSteps(origin, destination) : [];
+
   return (
     <div className="space-y-4">
       <div>
@@ -49,31 +117,94 @@ export default function PatientNavigation() {
 
       {navigating && destination ? (
         <div className="space-y-4">
-          {/* SVG Map Mock */}
+          {/* SVG Map */}
           <Card className="overflow-hidden">
             <CardContent className="p-0">
-              <svg viewBox="0 0 400 300" className="w-full h-56 bg-muted/50" aria-label={`Mapa de ${origin} até ${destination}`}>
-                {/* Grid */}
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <line key={`v${i}`} x1={i * 50 + 25} y1="20" x2={i * 50 + 25} y2="280" stroke="hsl(var(--border))" strokeWidth="0.5" />
+              <svg viewBox="0 0 420 320" className="w-full h-60 bg-muted/50" aria-label={`Mapa de ${origin} até ${destination}`}>
+                {/* Background grid */}
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <line key={`v${i}`} x1={i * 50 + 10} y1="10" x2={i * 50 + 10} y2="310" stroke="hsl(var(--border))" strokeWidth="0.3" />
                 ))}
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <line key={`h${i}`} x1="20" y1={i * 50 + 25} x2="380" y2={i * 50 + 25} stroke="hsl(var(--border))" strokeWidth="0.5" />
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <line key={`h${i}`} x1="10" y1={i * 50 + 10} x2="410" y2={i * 50 + 10} stroke="hsl(var(--border))" strokeWidth="0.3" />
                 ))}
+
                 {/* Rooms */}
-                <rect x="30" y="30" width="100" height="60" rx="8" fill="hsl(var(--accent))" stroke="hsl(var(--border))" />
-                <text x="80" y="65" textAnchor="middle" fill="hsl(var(--foreground))" fontSize="11" fontWeight="600">Recepção</text>
-                <rect x="270" y="200" width="100" height="60" rx="8" fill="hsl(var(--primary) / 0.15)" stroke="hsl(var(--primary))" strokeWidth="2" />
-                <text x="320" y="235" textAnchor="middle" fill="hsl(var(--primary))" fontSize="11" fontWeight="600">{destination}</text>
+                {LOCATIONS.map((loc) => (
+                  <g key={loc.id}>
+                    <rect
+                      x={loc.x - 35} y={loc.y - 12} width="70" height="24" rx="4"
+                      fill={loc.name === destination ? "hsl(var(--primary) / 0.15)" : loc.name === origin ? "hsl(var(--success) / 0.15)" : "hsl(var(--accent))"}
+                      stroke={loc.name === destination ? "hsl(var(--primary))" : loc.name === origin ? "hsl(var(--success))" : "hsl(var(--border))"}
+                      strokeWidth={loc.name === destination || loc.name === origin ? "2" : "1"}
+                    />
+                    <text x={loc.x} y={loc.y + 4} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="8" fontWeight="500">{loc.name}</text>
+                  </g>
+                ))}
+
+                {/* Landmarks */}
+                <g>
+                  {/* Elevator */}
+                  <rect x="195" y="130" width="30" height="20" rx="3" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" strokeWidth="1" />
+                  <text x="210" y="144" textAnchor="middle" fill="hsl(var(--primary))" fontSize="7" fontWeight="bold">🛗</text>
+                  
+                  {/* Stairs */}
+                  <rect x="235" y="130" width="30" height="20" rx="3" fill="hsl(var(--warning) / 0.2)" stroke="hsl(var(--warning))" strokeWidth="1" />
+                  <text x="250" y="144" textAnchor="middle" fill="hsl(var(--warning))" fontSize="7" fontWeight="bold">🪜</text>
+                  
+                  {/* Ramp */}
+                  <rect x="155" y="130" width="30" height="20" rx="3" fill="hsl(var(--success) / 0.2)" stroke="hsl(var(--success))" strokeWidth="1" />
+                  <text x="170" y="144" textAnchor="middle" fill="hsl(var(--success))" fontSize="7" fontWeight="bold">♿</text>
+                </g>
+
                 {/* Route path */}
-                <path d="M130 60 L200 60 L200 150 L270 150 L270 230" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="8 4" strokeLinecap="round" />
+                {originLoc && destLoc && (
+                  <path
+                    d={`M${originLoc.x} ${originLoc.y + 12} L${originLoc.x} 140 L210 140 L210 ${destLoc.y + 12} L${destLoc.x} ${destLoc.y + 12}`}
+                    fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="8 4" strokeLinecap="round"
+                  />
+                )}
+
                 {/* Origin dot */}
-                <circle cx="80" cy="60" r="8" fill="hsl(var(--success))" />
-                <circle cx="80" cy="60" r="4" fill="hsl(var(--success-foreground))" />
-                {/* Destination dot */}
-                <circle cx="320" cy="230" r="8" fill="hsl(var(--primary))" />
-                <circle cx="320" cy="230" r="4" fill="hsl(var(--primary-foreground))" />
+                {originLoc && (
+                  <>
+                    <circle cx={originLoc.x} cy={originLoc.y} r="6" fill="hsl(var(--success))" />
+                    <circle cx={originLoc.x} cy={originLoc.y} r="3" fill="white" />
+                  </>
+                )}
+                {/* Dest dot */}
+                {destLoc && (
+                  <>
+                    <circle cx={destLoc.x} cy={destLoc.y} r="6" fill="hsl(var(--primary))" />
+                    <circle cx={destLoc.x} cy={destLoc.y} r="3" fill="white" />
+                  </>
+                )}
+
+                {/* Legend */}
+                <g transform="translate(10, 280)">
+                  <rect width="120" height="28" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
+                  <text x="8" y="12" fontSize="6" fill="hsl(var(--muted-foreground))">🛗 Elevador  🪜 Escada  ♿ Rampa</text>
+                  <text x="8" y="22" fontSize="6" fill="hsl(var(--muted-foreground))">🟢 Origem  🔵 Destino</text>
+                </g>
               </svg>
+            </CardContent>
+          </Card>
+
+          {/* Route steps */}
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Passo a passo</p>
+              {routeSteps.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <div key={i} className={`flex items-start gap-3 text-sm py-2 ${i < routeSteps.length - 1 ? "border-b border-border" : ""}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${step.highlight ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Icon className="w-3.5 h-3.5" />
+                    </div>
+                    <p className={`text-foreground ${step.highlight ? "font-medium" : ""}`}>{step.instruction}</p>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
 
@@ -85,9 +216,18 @@ export default function PatientNavigation() {
           </div>
 
           <Button className="w-full" onClick={handleFinish}>Finalizar Navegação</Button>
-          <Button variant="outline" className="w-full" onClick={() => { setNavigating(false); setDestination(null); }}>
-            Cancelar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setNavigating(false); setDestination(null); }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 border-warning text-warning hover:bg-warning hover:text-warning-foreground"
+              onClick={() => setShowLostDialog(true)}
+            >
+              <AlertTriangle className="w-4 h-4 mr-1" /> Me perdi
+            </Button>
+          </div>
         </div>
       ) : (
         <>
@@ -118,12 +258,47 @@ export default function PatientNavigation() {
               </Card>
             ))}
           </div>
+
+          {/* Me perdi button when not navigating */}
+          <Button
+            variant="outline"
+            className="w-full border-warning text-warning hover:bg-warning hover:text-warning-foreground"
+            onClick={() => setShowLostDialog(true)}
+          >
+            <AlertTriangle className="w-4 h-4 mr-1" /> Me perdi
+          </Button>
         </>
       )}
 
       {showFeedback && (
         <FeedbackPopup type="CES" question="Quão fácil foi navegar até o destino?" onClose={() => setShowFeedback(false)} />
       )}
+
+      <AlertDialog open={showLostDialog} onOpenChange={setShowLostDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-warning flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" /> Me perdi
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {lostSent
+                ? "✅ Alerta enviado! A equipe de enfermagem foi notificada e enviará auxílio."
+                : "Ao confirmar, a equipe de enfermagem será notificada para ajudá-lo a encontrar seu caminho."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {!lostSent && (
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleLostConfirm}
+                className="bg-warning text-warning-foreground hover:bg-warning/90"
+              >
+                Confirmar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
