@@ -6,35 +6,35 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 210 40% 11%;
+    --background: 210 20% 97%;
+    --foreground: 212 50% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 210 40% 11%;
+    --card-foreground: 212 50% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 40% 11%;
+    --popover-foreground: 212 50% 12%;
 
     /* HUB Navy Blue */
-    --primary: 210 100% 20%;
+    --primary: 212 80% 22%;
     --primary-foreground: 0 0% 100%;
 
     /* HUB Green */
     --secondary: 152 100% 26%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 210 15% 46%;
+    --muted: 210 18% 93%;
+    --muted-foreground: 212 15% 46%;
 
-    --accent: 210 60% 94%;
-    --accent-foreground: 210 100% 20%;
+    --accent: 212 50% 92%;
+    --accent-foreground: 212 80% 22%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 210 18% 87%;
     --input: 210 18% 87%;
-    --ring: 210 100% 20%;
+    --ring: 212 80% 22%;
 
     --radius: 0.75rem;
 
@@ -45,8 +45,13 @@
     --warning-foreground: 45 93% 10%;
     --success: 152 69% 36%;
     --success-foreground: 0 0% 100%;
-    --info: 210 100% 20%;
+    --info: 212 80% 22%;
     --info-foreground: 0 0% 100%;
+
+    /* HUB brand gradient */
+    --hub-navy: 212 80% 22%;
+    --hub-green: 152 100% 26%;
+    --hub-light-blue: 210 60% 94%;
 
     /* Manchester Triage colors */
     --triage-red: 0 84% 50%;
@@ -57,41 +62,41 @@
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 210 100% 20%;
+    --sidebar-primary: 212 80% 22%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 60% 94%;
-    --sidebar-accent-foreground: 210 100% 20%;
+    --sidebar-accent: 212 50% 92%;
+    --sidebar-accent-foreground: 212 80% 22%;
     --sidebar-border: 210 18% 87%;
-    --sidebar-ring: 210 100% 20%;
+    --sidebar-ring: 212 80% 22%;
   }
 
   .dark {
-    --background: 210 40% 6%;
+    --background: 212 40% 6%;
     --foreground: 210 20% 95%;
-    --card: 210 40% 9%;
+    --card: 212 40% 9%;
     --card-foreground: 210 20% 95%;
-    --popover: 210 40% 9%;
+    --popover: 212 40% 9%;
     --popover-foreground: 210 20% 95%;
     --primary: 210 80% 45%;
     --primary-foreground: 0 0% 100%;
     --secondary: 152 80% 35%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 210 30% 15%;
+    --muted: 212 30% 15%;
     --muted-foreground: 210 15% 60%;
-    --accent: 210 50% 15%;
+    --accent: 212 50% 15%;
     --accent-foreground: 210 80% 70%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 210 30% 18%;
-    --input: 210 30% 18%;
+    --border: 212 30% 18%;
+    --input: 212 30% 18%;
     --ring: 210 80% 45%;
-    --sidebar-background: 210 40% 6%;
+    --sidebar-background: 212 40% 6%;
     --sidebar-foreground: 210 20% 90%;
     --sidebar-primary: 210 80% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 50% 15%;
+    --sidebar-accent: 212 50% 15%;
     --sidebar-accent-foreground: 210 80% 70%;
-    --sidebar-border: 210 30% 18%;
+    --sidebar-border: 212 30% 18%;
     --sidebar-ring: 210 80% 45%;
   }
 }
@@ -128,4 +133,13 @@
 
 .animate-blink-alert {
   animation: blink-alert 0.8s ease-in-out infinite;
+}
+
+/* Hub brand gradient utility */
+.hub-gradient {
+  background: linear-gradient(135deg, hsl(var(--hub-navy)), hsl(var(--hub-green)));
+}
+
+.hub-gradient-subtle {
+  background: linear-gradient(135deg, hsl(var(--hub-navy) / 0.05), hsl(var(--hub-green) / 0.08));
 }
