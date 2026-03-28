@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, type ReactNode
 
 export type UserRole = "patient" | "staff" | null;
 export type TriageLevel = "red" | "orange" | "yellow" | "green" | "blue";
-export type TriageStatus = "pending" | "approved" | "in-queue" | "in-service" | "completed";
+export type TriageStatus = "pending" | "approved" | "in-queue";
 
 export interface Patient {
   id: string;
@@ -32,14 +32,6 @@ export interface LostAlert {
   assignedTo?: string;
 }
 
-export interface SeverityChange {
-  from: TriageLevel;
-  to: TriageLevel;
-  justification: string;
-  changedBy: string;
-  timestamp: Date;
-}
-
 export interface TriageTicket {
   id: string;
   ticketNumber: string;
@@ -52,10 +44,6 @@ export interface TriageTicket {
   createdAt: Date;
   estimatedWait?: number;
   location?: string;
-  resolution?: string;
-  severityChanges?: SeverityChange[];
-  telemedicine?: boolean;
-  telemedicineWait?: number;
 }
 
 export interface OncologyEvent {
@@ -64,15 +52,6 @@ export interface OncologyEvent {
   type: "infusion" | "consult" | "exam" | "return";
   description: string;
   location: string;
-}
-
-export interface StaffMember {
-  id: string;
-  name: string;
-  role: "doctor" | "nurse";
-  specialty?: string;
-  shift: "morning" | "afternoon" | "night";
-  avatar: string;
 }
 
 interface HospitalState {
@@ -90,15 +69,11 @@ interface HospitalState {
   triageTickets: TriageTicket[];
   addTriageTicket: (ticket: Omit<TriageTicket, "id" | "createdAt" | "ticketNumber">) => void;
   approveTicket: (id: string, level: TriageLevel) => void;
-  startServiceTicket: (id: string) => void;
-  completeTicket: (id: string, resolution: string) => void;
-  changeSeverity: (id: string, newLevel: TriageLevel, justification: string, changedBy: string) => void;
   oncologyEvents: OncologyEvent[];
   feedbackScores: { type: string; score: number; timestamp: Date }[];
   addFeedback: (type: string, score: number) => void;
   pendingDestination: string | null;
   setPendingDestination: (dest: string | null) => void;
-  staffMembers: StaffMember[];
 }
 
 const MOCK_PATIENTS: Patient[] = [
@@ -107,16 +82,6 @@ const MOCK_PATIENTS: Patient[] = [
   { id: "p3", name: "Ana Oliveira", cpf: "***.***.***-03", avatar: "AO", age: 72, oncology: true },
   { id: "p4", name: "Carlos Lima", cpf: "***.***.***-04", avatar: "CL", age: 45 },
   { id: "p5", name: "Beatriz Rocha", cpf: "***.***.***-05", avatar: "BR", age: 29 },
-];
-
-const MOCK_STAFF: StaffMember[] = [
-  { id: "s1", name: "Dr. Ricardo Mendes", role: "doctor", specialty: "Clínica Geral", shift: "morning", avatar: "RM" },
-  { id: "s2", name: "Dra. Fernanda Costa", role: "doctor", specialty: "Oncologia", shift: "morning", avatar: "FC" },
-  { id: "s3", name: "Dr. Paulo Almeida", role: "doctor", specialty: "Emergência", shift: "afternoon", avatar: "PA" },
-  { id: "s4", name: "Enf. Ana Beatriz", role: "nurse", shift: "morning", avatar: "AB" },
-  { id: "s5", name: "Enf. Marcos Vieira", role: "nurse", shift: "afternoon", avatar: "MV" },
-  { id: "s6", name: "Enf. Juliana Reis", role: "nurse", shift: "night", avatar: "JR" },
-  { id: "s7", name: "Dr. Thiago Borges", role: "doctor", specialty: "Cardiologia", shift: "night", avatar: "TB" },
 ];
 
 const MOCK_ONCOLOGY_EVENTS: OncologyEvent[] = [
@@ -132,7 +97,7 @@ let ticketCounter = 100;
 
 const INITIAL_TICKETS: TriageTicket[] = [
   { id: "t1", ticketNumber: "A097", patientId: "p2", patientName: "João Santos", symptoms: ["Dor de cabeça", "Febre"], symptomsDescription: "Dor de cabeça forte há 3 horas, febre de 38.5°C", level: "yellow", status: "pending", createdAt: new Date(Date.now() - 1200000), location: "Recepção Principal" },
-  { id: "t2", ticketNumber: "A098", patientId: "p4", patientName: "Carlos Lima", symptoms: ["Dor torácica", "Dispneia"], symptomsDescription: "Dor no peito com falta de ar súbita", level: "red", status: "in-service", createdAt: new Date(Date.now() - 600000), estimatedWait: 0, location: "Emergência" },
+  { id: "t2", ticketNumber: "A098", patientId: "p4", patientName: "Carlos Lima", symptoms: ["Dor torácica", "Dispneia"], symptomsDescription: "Dor no peito com falta de ar súbita", level: "red", status: "approved", createdAt: new Date(Date.now() - 600000), estimatedWait: 0, location: "Emergência" },
   { id: "t3", ticketNumber: "A099", patientId: "p5", patientName: "Beatriz Rocha", symptoms: ["Dor de garganta"], symptomsDescription: "Dor de garganta há 2 dias", level: "green", status: "in-queue", createdAt: new Date(Date.now() - 3600000), estimatedWait: 45, location: "Recepção Principal" },
 ];
 
@@ -196,35 +161,8 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
   const approveTicket = useCallback((id: string, level: TriageLevel) => {
     setTriageTickets((prev) =>
       prev.map((t) =>
-        t.id === id ? { ...t, level, status: "in-queue" as TriageStatus, estimatedWait: level === "red" ? 0 : level === "orange" ? 10 : level === "yellow" ? 60 : level === "green" ? 120 : 240 } : t
+        t.id === id ? { ...t, level, status: "approved" as TriageStatus, estimatedWait: level === "red" ? 0 : level === "orange" ? 10 : level === "yellow" ? 60 : level === "green" ? 120 : 240 } : t
       )
-    );
-  }, []);
-
-  const startServiceTicket = useCallback((id: string) => {
-    setTriageTickets((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: "in-service" as TriageStatus } : t))
-    );
-  }, []);
-
-  const completeTicket = useCallback((id: string, resolution: string) => {
-    setTriageTickets((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: "completed" as TriageStatus, resolution } : t))
-    );
-  }, []);
-
-  const changeSeverity = useCallback((id: string, newLevel: TriageLevel, justification: string, changedBy: string) => {
-    setTriageTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        const change: SeverityChange = { from: t.level, to: newLevel, justification, changedBy, timestamp: new Date() };
-        return {
-          ...t,
-          level: newLevel,
-          severityChanges: [...(t.severityChanges || []), change],
-          estimatedWait: newLevel === "red" ? 0 : newLevel === "orange" ? 10 : newLevel === "yellow" ? 60 : newLevel === "green" ? 120 : 240,
-        };
-      })
     );
   }, []);
 
@@ -238,11 +176,10 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
         role, setRole, currentPatient, patients: MOCK_PATIENTS,
         sosAlerts, triggerSOS, dismissSOS,
         lostAlerts, triggerLost, dismissLost, assignLost,
-        triageTickets, addTriageTicket, approveTicket, startServiceTicket, completeTicket, changeSeverity,
+        triageTickets, addTriageTicket, approveTicket,
         oncologyEvents: MOCK_ONCOLOGY_EVENTS,
         feedbackScores, addFeedback,
         pendingDestination, setPendingDestination,
-        staffMembers: MOCK_STAFF,
       }}
     >
       {children}
