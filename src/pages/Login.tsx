@@ -1,7 +1,7 @@
 import { useHospital } from "@/contexts/HospitalContext";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Stethoscope, User, ShieldCheck } from "lucide-react";
+import { Stethoscope, User } from "lucide-react";
+import hubLogo from "@/assets/hub-logo.png";
 
 export default function Login() {
   const { setRole } = useHospital();
@@ -9,9 +9,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="mb-10 text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary mb-6">
-          <ShieldCheck className="w-10 h-10 text-primary-foreground" />
-        </div>
+        <img src={hubLogo} alt="UnB | HUB" className="h-16 mx-auto mb-6 object-contain" />
         <h1 className="text-3xl font-display font-bold text-foreground">HUB Saúde</h1>
         <p className="text-muted-foreground mt-2 text-sm max-w-xs mx-auto">
           Hospital Universitário de Brasília — Gestão Hospitalar Inteligente
