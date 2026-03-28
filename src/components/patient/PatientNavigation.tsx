@@ -3,7 +3,7 @@ import { useHospital } from "@/contexts/HospitalContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MapPin, Navigation, Search, QrCode, Stairs, ArrowUp, DoorOpen, Accessibility, AlertTriangle } from "lucide-react";
+import { MapPin, Navigation, Search, QrCode, ArrowUp, DoorOpen, Accessibility, AlertTriangle } from "lucide-react";
 import FeedbackPopup from "@/components/FeedbackPopup";
 import {
   AlertDialog,
