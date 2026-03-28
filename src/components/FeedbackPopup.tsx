@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useHospital } from "@/contexts/HospitalContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { X, Star } from "lucide-react";
 
 interface FeedbackPopupProps {
@@ -11,15 +12,16 @@ interface FeedbackPopupProps {
 }
 
 export default function FeedbackPopup({ type, question, onClose }: FeedbackPopupProps) {
-  const { addFeedback } = useHospital();
+  const { addFeedback, currentPatient } = useHospital();
   const [score, setScore] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const maxScore = type === "NPS" ? 10 : 5;
 
   const handleSubmit = () => {
     if (score !== null) {
-      addFeedback(type, score);
+      addFeedback(currentPatient.id, type, score, comment.trim() || undefined);
       setSubmitted(true);
       setTimeout(onClose, 1500);
     }
@@ -56,6 +58,12 @@ export default function FeedbackPopup({ type, question, onClose }: FeedbackPopup
                 <span>Muito difícil</span>
                 <span>Muito fácil</span>
               </div>
+              <Textarea
+                placeholder="Deixe um comentário"
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                className="min-h-[90px]"
+              />
               <Button className="w-full" disabled={score === null} onClick={handleSubmit}>
                 Enviar
               </Button>

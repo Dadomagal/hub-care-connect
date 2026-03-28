@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useHospital } from "@/contexts/HospitalContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, CheckCircle2, Hourglass, Ticket } from "lucide-react";
+import { Clock, CheckCircle2, Hourglass, Ticket, Video } from "lucide-react";
 
 const LEVEL_LABELS: Record<string, string> = {
   red: "Emergência",
@@ -14,8 +14,10 @@ const LEVEL_LABELS: Record<string, string> = {
 export default function PatientQueue() {
   const { triageTickets, currentPatient } = useHospital();
   const myTickets = triageTickets.filter((t) => t.patientId === currentPatient.id);
-  const activeTicket = myTickets.find((t) => t.status === "approved" || t.status === "in-queue");
-  const pendingTicket = myTickets.find((t) => t.status === "pending");
+  const sortedTickets = [...myTickets].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const activeTicket = sortedTickets.find((t) => t.status === "approved" || t.status === "in-queue" || t.status === "in-care");
+  const pendingTicket = sortedTickets.find((t) => t.status === "pending");
+  const completedTicket = sortedTickets.find((t) => t.status === "completed");
 
   return (
     <div className="space-y-6">
@@ -34,6 +36,17 @@ export default function PatientQueue() {
               <p className="text-sm font-medium text-foreground">Triagem em análise</p>
               <p className="text-xs text-muted-foreground mt-1">Aguarde a validação da equipe de saúde</p>
             </div>
+            {pendingTicket.telemedicineRequested && (
+              <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-foreground font-medium mb-1">
+                  <Video className="w-4 h-4 text-primary" /> Atendimento remoto solicitado
+                </div>
+                Previsão: <span className="font-semibold text-foreground">{pendingTicket.telemedicineEta ?? 0} min</span> · Status: {formatTelemedicineStatus(pendingTicket.telemedicineStatus)}
+                {pendingTicket.telemedicineNote && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">Feedback médico: {pendingTicket.telemedicineNote}</p>
+                )}
+              </div>
+            )}
             <div className="bg-muted rounded-lg p-3 space-y-1">
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Nº Atendimento</span>
@@ -43,6 +56,19 @@ export default function PatientQueue() {
                 <span className="text-muted-foreground">Sintomas</span>
                 <span className="text-foreground text-right max-w-[60%] truncate">{pendingTicket.symptoms.slice(0, 2).join(", ")}</span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : completedTicket ? (
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <div className="text-center">
+              <CheckCircle2 className="w-10 h-10 text-success mx-auto mb-3" />
+              <p className="text-sm font-medium text-foreground">Atendimento concluído</p>
+              <p className="text-xs text-muted-foreground mt-1">Resumo da resolução</p>
+            </div>
+            <div className="bg-muted rounded-lg p-3 text-sm text-foreground">
+              {completedTicket.resolution || "Sem resolução cadastrada."}
             </div>
           </CardContent>
         </Card>
@@ -61,12 +87,19 @@ export default function PatientQueue() {
 
 function TicketCard({ ticket }: { ticket: ReturnType<typeof useHospital>["triageTickets"][0] }) {
   const [remaining, setRemaining] = useState(ticket.estimatedWait ?? 0);
+  const [telemedRemaining, setTelemedRemaining] = useState(ticket.telemedicineEta ?? 0);
 
   useEffect(() => {
     if (remaining <= 0) return;
     const interval = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 60000);
     return () => clearInterval(interval);
   }, [remaining]);
+
+  useEffect(() => {
+    if (telemedRemaining <= 0) return;
+    const interval = setInterval(() => setTelemedRemaining((r) => Math.max(0, r - 1)), 60000);
+    return () => clearInterval(interval);
+  }, [telemedRemaining]);
 
   const triageColor = {
     red: "border-triage-red",
@@ -103,11 +136,29 @@ function TicketCard({ ticket }: { ticket: ReturnType<typeof useHospital>["triage
           <p className="text-sm text-muted-foreground">Previsão de atendimento</p>
         </div>
 
+        {ticket.telemedicineRequested && (
+          <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-sm">
+            <div className="flex items-center gap-2 text-foreground font-medium">
+              <Video className="w-4 h-4 text-primary" /> Atendimento à distância
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Previsão: <span className="font-semibold text-foreground">{telemedRemaining} min</span> · Status: {formatTelemedicineStatus(ticket.telemedicineStatus)}
+            </p>
+            {ticket.telemedicineNote && (
+              <p className="text-xs text-muted-foreground mt-2">Feedback médico: {ticket.telemedicineNote}</p>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           <div className="bg-muted rounded-lg p-3">
             <p className="text-xs text-muted-foreground">Status</p>
             <p className="text-sm font-medium text-foreground">
-              {ticket.status === "approved" ? "Classificação aprovada — aguardando chamada" : "Em fila virtual"}
+              {ticket.status === "approved"
+                ? "Classificação aprovada — aguardando chamada"
+                : ticket.status === "in-care"
+                  ? "Em atendimento pela equipe"
+                  : "Em fila virtual"}
             </p>
           </div>
           <div className="bg-muted rounded-lg p-3">
@@ -118,4 +169,10 @@ function TicketCard({ ticket }: { ticket: ReturnType<typeof useHospital>["triage
       </CardContent>
     </Card>
   );
+}
+
+function formatTelemedicineStatus(status?: string) {
+  if (status === "in-call") return "Em atendimento remoto";
+  if (status === "completed") return "Atendimento concluído";
+  return "Aguardando médico";
 }
